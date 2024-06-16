@@ -1,69 +1,118 @@
-# Passo 1: Importar as bibliotecas necessárias
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.datasets import load_iris, load_wine
+import pandas as pd
+from sklearn.datasets import load_iris, load_digits, load_breast_cancer, load_wine
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.neighbors import KernelDensity
+from sklearn.naive_bayes import GaussianNB
+from sklearn.linear_model import Perceptron
+from sklearn.metrics import accuracy_score, classification_report
 
-# Função para plotar gráficos de dispersão
-def plot_data(X, y, title):
-    plt.figure(figsize=(12, 6))
-    for i in range(1, 3):
-        for j in range(i+1, 4):
-            plt.subplot(1, 3, i)
-            sns.scatterplot(x=X[:, i-1], y=X[:, j-1], hue=y, palette='viridis')
-            plt.xlabel(f'Feature {i}')
-            plt.ylabel(f'Feature {j}')
-            plt.title(f'{title} - Feature {i} vs Feature {j}')
-    plt.tight_layout()
-    plt.show()
-
-# Função para treinar e avaliar o modelo KNN
-def train_and_evaluate_knn(X, y, dataset_name):
-    # Dividir os dados em conjuntos de treino e teste
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
-
-    # Normalizar os dados
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-
-    # Treinar o modelo KNN
-    knn = KNeighborsClassifier(n_neighbors=3)  # k=3
-    knn.fit(X_train, y_train)
-
-    # Fazer previsões
-    y_pred = knn.predict(X_test)
-
-    # Avaliar o modelo
-    accuracy = accuracy_score(y_test, y_pred)
-    print(f"Acurácia do modelo no conjunto de dados {dataset_name}: {accuracy * 100:.2f}%")
-    print("Relatório de Classificação:")
-    print(classification_report(y_test, y_pred))
-
-    # Plotar matriz de confusão
-    cm = confusion_matrix(y_test, y_pred)
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-    plt.title(f'Matriz de Confusão - {dataset_name}')
-    plt.xlabel('Predito')
-    plt.ylabel('Verdadeiro')
-    plt.show()
-
-# Carregar e plotar dados do conjunto Iris
+# Carregar os datasets
 iris = load_iris()
-X_iris, y_iris = iris.data, iris.target
-plot_data(X_iris, y_iris, 'Iris')
-
-# Treinar e avaliar modelo KNN no conjunto Iris
-train_and_evaluate_knn(X_iris, y_iris, 'Iris')
-
-# Carregar e plotar dados do conjunto Wine
+digits = load_digits()
+breast_cancer = load_breast_cancer()
 wine = load_wine()
-X_wine, y_wine = wine.data, wine.target
-plot_data(X_wine, y_wine, 'Wine')
 
-# Treinar e avaliar modelo KNN no conjunto Wine
-train_and_evaluate_knn(X_wine, y_wine, 'Wine')
+datasets = {
+    "Iris": iris,
+    "Digits": digits,
+    "Breast Cancer": breast_cancer,
+    "Wine": wine
+}
+
+# Função para treinar e avaliar o classificador KDE
+def kde_classifier(dataset, bandwidth):
+    X_train, X_test, y_train, y_test = train_test_split(dataset.data, dataset.target, test_size=0.3, random_state=42)
+    
+    # Treinar um KDE para cada classe
+    kde_models = {}
+    for class_label in np.unique(y_train):
+        kde = KernelDensity(kernel='gaussian', bandwidth=bandwidth)
+        kde.fit(X_train[y_train == class_label])
+        kde_models[class_label] = kde
+    
+    # Função para prever a classe de uma nova amostra
+    def predict(X):
+        log_probs = np.array([kde_models[class_label].score_samples(X) for class_label in kde_models])
+        return np.argmax(log_probs, axis=0)
+    
+    # Prever no conjunto de teste
+    y_pred = predict(X_test)
+    
+    # Avaliar o classificador
+    accuracy = accuracy_score(y_test, y_pred)
+    report = classification_report(y_test, y_pred)
+    
+    print(f"KDE Classifier - {dataset['DESCR'].splitlines()[0]} dataset with bandwidth {bandwidth}:")
+    print(f"Accuracy: {accuracy:.2f}")
+    print(report)
+    
+    return accuracy
+
+# Função para treinar e avaliar o classificador Naive Bayes
+def nb_classifier(dataset):
+    X_train, X_test, y_train, y_test = train_test_split(dataset.data, dataset.target, test_size=0.3, random_state=42)
+    
+    # Treinar o Naive Bayes
+    nb = GaussianNB()
+    nb.fit(X_train, y_train)
+    
+    # Prever no conjunto de teste
+    y_pred = nb.predict(X_test)
+    
+    # Avaliar o classificador
+    accuracy = accuracy_score(y_test, y_pred)
+    report = classification_report(y_test, y_pred)
+    
+    print(f"Naive Bayes Classifier - {dataset['DESCR'].splitlines()[0]} dataset:")
+    print(f"Accuracy: {accuracy:.2f}")
+    print(report)
+    
+    return accuracy
+
+# Função para treinar e avaliar o classificador Perceptron
+def perceptron_classifier(dataset):
+    X_train, X_test, y_train, y_test = train_test_split(dataset.data, dataset.target, test_size=0.3, random_state=42)
+    
+    # Treinar o Perceptron
+    perceptron = Perceptron()
+    perceptron.fit(X_train, y_train)
+    
+    # Prever no conjunto de teste
+    y_pred = perceptron.predict(X_test)
+    
+    # Avaliar o classificador
+    accuracy = accuracy_score(y_test, y_pred)
+    report = classification_report(y_test, y_pred)
+    
+    print(f"Perceptron Classifier - {dataset['DESCR'].splitlines()[0]} dataset:")
+    print(f"Accuracy: {accuracy:.2f}")
+    print(report)
+    
+    return accuracy
+
+# Ajuste do valor da largura da gaussiana
+bandwidth = 1.0  # Você pode alterar este valor
+
+# Tabela de acurácia
+accuracy_table = pd.DataFrame(index=['KDE', 'Naive Bayes', 'Perceptron'], columns=datasets.keys())
+
+# Aplicar para cada dataset
+for name, dataset in datasets.items():
+    print(f"Evaluating {name} dataset:")
+
+    # KDE Classifier
+    accuracy_kde = kde_classifier(dataset, bandwidth)
+    accuracy_table.loc['KDE', name] = accuracy_kde
+    
+    # Naive Bayes Classifier
+    accuracy_nb = nb_classifier(dataset)
+    accuracy_table.loc['Naive Bayes', name] = accuracy_nb
+    
+    # Perceptron Classifier
+    accuracy_perceptron = perceptron_classifier(dataset)
+    accuracy_table.loc['Perceptron', name] = accuracy_perceptron
+
+# Mostrar a tabela de acurácia
+print("\nAccuracy Table:")
+print(accuracy_table)

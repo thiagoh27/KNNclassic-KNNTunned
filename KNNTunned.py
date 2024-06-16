@@ -145,7 +145,3 @@ digits = load_digits()
 X_digits, y_digits = digits.data, digits.target
 compare_knn_models(X_digits, y_digits, 'Digits', [f'Pixel {i}' for i in range(X_digits.shape[1])])
 
-# Carregar e plotar dados do conjunto Lung Cancer
-lung_cancer = fetch_openml(name="lung-cancer", version=1, as_frame=False)
-X_lung, y_lung = lung_cancer.data, lung_cancer.target.astype(int)  # Convert y to integer
-compare_knn_models(X_lung, y_lung, 'Lung Cancer', lung_cancer.feature_names)
