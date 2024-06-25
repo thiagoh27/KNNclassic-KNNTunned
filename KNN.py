@@ -2,180 +2,43 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from sklearn.datasets import load_iris, load_wine, load_breast_cancer, load_digits
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.datasets import load_iris, load_digits, load_breast_cancer, load_wine
 from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import KNeighborsClassifier, KernelDensity
-from sklearn.naive_bayes import GaussianNB
-from sklearn.linear_model import Perceptron
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
-# Função para treinar e avaliar o classificador KDE
-def kde_classifier(X_train, X_test, y_train, y_test, bandwidth):
-    kde_models = {}
-    for class_label in np.unique(y_train):
-        kde = KernelDensity(kernel='gaussian', bandwidth=bandwidth)
-        kde.fit(X_train[y_train == class_label])
-        kde_models[class_label] = kde
-    
-    def predict(X):
-        log_probs = np.array([kde_models[class_label].score_samples(X) for class_label in kde_models])
-        return np.argmax(log_probs, axis=0)
-    
-    y_pred = predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-    print(f"Accuracy: {accuracy:.2f}")
-    print(classification_report(y_test, y_pred))
-    
-    return accuracy
+# Função para plotar KDE para cada dataset
+def plot_kde(data, features, target, target_names, title):
+    plt.figure(figsize=(10, 6))
+    colors = sns.color_palette('hsv', len(target_names))
+    for target_value, target_name, color in zip(np.unique(data[target]), target_names, colors):
+        subset = data[data[target] == target_value]
+        sns.kdeplot(x=subset[features[0]], y=subset[features[1]], 
+                    shade=True, alpha=0.5, label=target_name, color=color)
 
-# Função para treinar e avaliar o classificador Naive Bayes
-def nb_classifier(X_train, X_test, y_train, y_test):
-    nb = GaussianNB()
-    nb.fit(X_train, y_train)
-    y_pred = nb.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-    print(f"Accuracy: {accuracy:.2f}")
-    print(classification_report(y_test, y_pred))
-    return accuracy
+    plt.title(title)
+    plt.xlabel(features[0])
+    plt.ylabel(features[1])
+    plt.legend(title='Classes')
+    plt.grid(True)
+    plt.show()
 
-# Função para treinar e avaliar o classificador Perceptron
-def perceptron_classifier(X_train, X_test, y_train, y_test):
-    perceptron = Perceptron()
-    perceptron.fit(X_train, y_train)
-    y_pred = perceptron.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-    print(f"Accuracy: {accuracy:.2f}")
-    print(classification_report(y_test, y_pred))
-    return accuracy
-
-# Função para treinar e avaliar o modelo KNN clássico
-def train_and_evaluate_knn_classic(X_train, X_test, y_train, y_test):
-    knn_classic = KNeighborsClassifier(n_neighbors=3)
-    knn_classic.fit(X_train, y_train)
-    y_pred_classic = knn_classic.predict(X_test)
-    accuracy_classic = accuracy_score(y_test, y_pred_classic)
-    print(f"Accuracy: {accuracy_classic * 100:.2f}%")
-    print(classification_report(y_test, y_pred_classic))
-    return accuracy_classic
-
-# Função para treinar e avaliar o modelo KNN ponderado com GridSearchCV
-def train_and_evaluate_knn_weighted(X_train, X_test, y_train, y_test):
-    param_grid = {
-        'n_neighbors': np.arange(1, 32),
-        'weights': ['uniform', 'distance']
-    }
-    knn = KNeighborsClassifier()
-    grid_search = GridSearchCV(knn, param_grid, cv=5, scoring='accuracy', n_jobs=-1)
-    grid_search.fit(X_train, y_train)
-    best_params = grid_search.best_params_
-    print(f"Best parameters: {best_params}")
-    knn_best = KNeighborsClassifier(**best_params)
-    knn_best.fit(X_train, y_train)
-    y_pred_weighted = knn_best.predict(X_test)
-    accuracy_weighted = accuracy_score(y_test, y_pred_weighted)
-    print(f"Accuracy: {accuracy_weighted * 100:.2f}%")
-    print(classification_report(y_test, y_pred_weighted))
-    return accuracy_weighted
-
-# Função para treinar e avaliar o modelo KNN ponderado com pesos de densidades KDE
-def train_and_evaluate_knn_kde_weighted(X_train, X_test, y_train, y_test, bandwidth):
-    kde_models = {}
-    for class_label in np.unique(y_train):
-        kde = KernelDensity(kernel='gaussian', bandwidth=bandwidth)
-        kde.fit(X_train[y_train == class_label])
-        kde_models[class_label] = kde
-
-    # Calcular as densidades dos pontos de teste
-    def kde_density_weights(X):
-        return np.exp(np.array([kde_models[class_label].score_samples(X) for class_label in kde_models]).T)
-
-    test_weights = kde_density_weights(X_test)
-    train_weights = kde_density_weights(X_train)
-
-    # Ajustar manualmente as distâncias usando as densidades como pesos
-    class CustomKNN(KNeighborsClassifier):
-        def predict(self, X):
-            distances, indices = self.kneighbors(X)
-            y_pred = np.zeros(X.shape[0], dtype=int)
-            for i in range(X.shape[0]):
-                weighted_votes = np.zeros(len(self.classes_))
-                for j, idx in enumerate(indices[i]):
-                    class_idx = self._y[idx]
-                    distance = distances[i][j]
-                    weight = train_weights[idx, class_idx]  # usar pesos de densidade
-                    weighted_votes[class_idx] += weight / distance
-                y_pred[i] = np.argmax(weighted_votes)
-            return y_pred
-
-    knn = CustomKNN(n_neighbors=5)
-    knn.fit(X_train, y_train)
-    y_pred_weighted = knn.predict(X_test)
-    
-    accuracy_weighted = accuracy_score(y_test, y_pred_weighted)
-    print(f"Accuracy: {accuracy_weighted * 100:.2f}%")
-    print(classification_report(y_test, y_pred_weighted))
-    
-    return accuracy_weighted
-
-# Carregar os datasets
+# Carregar e processar o dataset Iris
 iris = load_iris()
+iris_data = pd.DataFrame(data=np.c_[iris['data'], iris['target']], columns=iris['feature_names'] + ['target'])
+iris_data['species'] = iris_data['target'].map({0: 'setosa', 1: 'versicolor', 2: 'virginica'})
+plot_kde(iris_data, ['sepal length (cm)', 'sepal width (cm)'], 'target', iris.target_names, 'Distribuição de Densidade KDE para o Dataset Iris')
+
+# Carregar e processar o dataset Digits
 digits = load_digits()
-breast_cancer = load_breast_cancer()
+digits_data = pd.DataFrame(data=np.c_[digits['data'], digits['target']], columns=[f'pixel_{i}' for i in range(digits['data'].shape[1])] + ['target'])
+# Para simplificação, usaremos as primeiras duas características dos dados
+plot_kde(digits_data, ['pixel_0', 'pixel_1'], 'target', [str(i) for i in digits.target_names], 'Distribuição de Densidade KDE para o Dataset Digits')
+
+# Carregar e processar o dataset Breast Cancer
+cancer = load_breast_cancer()
+cancer_data = pd.DataFrame(data=np.c_[cancer['data'], cancer['target']], columns=cancer['feature_names'].tolist() + ['target'])
+plot_kde(cancer_data, ['mean radius', 'mean texture'], 'target', cancer.target_names, 'Distribuição de Densidade KDE para o Dataset Breast Cancer')
+
+# Carregar e processar o dataset Wine
 wine = load_wine()
-
-datasets = {
-    "Iris": iris,
-    "Digits": digits,
-    "Breast Cancer": breast_cancer,
-    "Wine": wine
-}
-
-# Ajuste do valor da largura da gaussiana
-bandwidth = 1.0  # Você pode alterar este valor
-
-# Tabela de acurácia
-accuracy_table = pd.DataFrame(index=['KDE', 'Naive Bayes', 'Perceptron', 'KNN Clássico', 'KNN Ponderado', 'KNN KDE-Ponderado'], columns=datasets.keys())
-
-# Aplicar para cada dataset
-for name, dataset in datasets.items():
-    print(f"Evaluating {name} dataset:")
-    X_train, X_test, y_train, y_test = train_test_split(dataset.data, dataset.target, test_size=0.3, random_state=42)
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-    
-    # KDE Classifier
-    print(f"KDE Classifier - {name} dataset with bandwidth {bandwidth}:")
-    accuracy_kde = kde_classifier(X_train, X_test, y_train, y_test, bandwidth)
-    accuracy_table.loc['KDE', name] = accuracy_kde
-    
-    # Naive Bayes Classifier
-    print(f"Naive Bayes Classifier - {name} dataset:")
-    accuracy_nb = nb_classifier(X_train, X_test, y_train, y_test)
-    accuracy_table.loc['Naive Bayes', name] = accuracy_nb
-    
-    # Perceptron Classifier
-    print(f"Perceptron Classifier - {name} dataset:")
-    accuracy_perceptron = perceptron_classifier(X_train, X_test, y_train, y_test)
-    accuracy_table.loc['Perceptron', name] = accuracy_perceptron
-    
-    # KNN Clássico
-    print(f"KNN Clássico - {name} dataset:")
-    accuracy_knn_classic = train_and_evaluate_knn_classic(X_train, X_test, y_train, y_test)
-    accuracy_table.loc['KNN Clássico', name] = accuracy_knn_classic
-    
-    # KNN Ponderado
-    print(f"KNN Ponderado - {name} dataset:")
-    accuracy_knn_weighted = train_and_evaluate_knn_weighted(X_train, X_test, y_train, y_test)
-    accuracy_table.loc['KNN Ponderado', name] = accuracy_knn_weighted
-    
-    # KNN KDE-Ponderado
-    print(f"KNN KDE-Ponderado - {name} dataset with bandwidth {bandwidth}:")
-    accuracy_knn_kde_weighted = train_and_evaluate_knn_kde_weighted(X_train, X_test, y_train, y_test, bandwidth)
-    accuracy_table.loc['KNN KDE-Ponderado', name] = accuracy_knn_kde_weighted
-
-# Mostrar a tabela de acurácia
-print("\nAccuracy Table:")
-print(accuracy_table)
+wine_data = pd.DataFrame(data=np.c_[wine['data'], wine['target']], columns=wine['feature_names'].tolist() + ['target'])
+plot_kde(wine_data, ['alcohol', 'malic_acid'], 'target', wine.target_names, 'Distribuição de Densidade KDE para o Dataset Wine')
